@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>元素週期表點擊遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 4 / 5;
+            background: #020617; /* slate-950 */
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 2px solid #1e293b; /* slate-800 */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle, rgba(15, 23, 42, 0.9) 0%, rgba(2, 6, 23, 0.95) 100%);
+            padding: 2rem;
+            text-align: center;
+            z-index: 10;
+        }
+        .level-option {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            gap: 1rem;
+        }
+        .level-option .start-btn {
+            flex-grow: 1;
+        }
+        .slow-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            border: 2px solid #334155; /* slate-700 */
+            border-radius: 0.5rem;
+        }
+        .slow-option label {
+            font-size: 0.875rem;
+            color: #9ca3af; /* gray-400 */
+        }
+        .slow-option .slow-checkbox {
+            width: 1.5rem;
+            height: 1.5rem;
+            accent-color: #06b6d4; /* cyan-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-2 md:p-4">
+
+    <div id="game-container" class="relative">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- UI 疊加層 -->
+        <div id="ui-overlay" class="hidden absolute top-0 left-0 w-full h-full p-4 flex flex-col pointer-events-none">
+            <div class="flex justify-between items-center text-white">
+                <div class="bg-black/50 p-2 rounded-lg shadow-lg">
+                    <span class="text-lg">得分:</span>
+                    <span id="score" class="text-2xl font-bold text-yellow-300">0</span>
+                </div>
+                 <div class="bg-black/50 p-2 rounded-lg shadow-lg">
+                    <span class="text-lg">時間:</span>
+                    <span id="timer" class="text-2xl font-bold text-cyan-300">120</span>
+                </div>
+                <div class="bg-black/50 p-2 rounded-lg shadow-lg">
+                    <span class="text-lg">生命:</span>
+                    <span id="lives" class="text-2xl font-bold text-red-400">❤️❤️❤️</span>
+                </div>
+            </div>
+             <div id="level-indicator" class="mt-2 text-center text-xl font-bold text-cyan-300 bg-black/50 p-2 rounded-lg self-center shadow-lg"></div>
+        </div>
+
+        <!-- 登入畫面 -->
+        <div id="login-screen" class="screen bg-gray-800/50 rounded-2xl shadow-2xl">
+            <div class="mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-300 drop-shadow-lg">
+                    <path d="M12 21a9 9 0 1 0-8.25-12.06"/>
+                    <path d="M16 4a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/>
+                    <path d="M14 4a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/>
+                </svg>
+            </div>
+            <h1 class="text-4xl font-bold mb-2 text-cyan-300 drop-shadow-lg">元素週期表點擊挑戰賽</h1>
+            <p class="text-yellow-200 text-sm mb-4">Sleeping設計</p>
+            <p class="text-gray-400 mb-8">請輸入班級座號以開始！</p>
+            <div class="max-w-sm w-full">
+                <div class="mb-4">
+                    <label for="class-input" class="block text-left mb-2 text-gray-300">班級</label>
+                    <input type="number" id="class-input" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="例如：206 (代表2年6班)">
+                </div>
+                <div class="mb-6">
+                    <label for="seat-input" class="block text-left mb-2 text-gray-300">座號</label>
+                    <input type="number" id="seat-input" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="例如：5">
+                </div>
+                <button id="login-button" class="w-full bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">
+                    進入關卡選單
+                </button>
+            </div>
+        </div>
+        
+        <!-- 關卡選擇畫面 -->
+        <div id="start-screen" class="screen hidden bg-gray-800/50 rounded-2xl shadow-2xl">
+            <div class="mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-300 drop-shadow-lg">
+                    <path d="M12 21a9 9 0 1 0-8.25-12.06"/>
+                    <path d="M16 4a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/>
+                    <path d="M14 4a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/>
+                </svg>
+            </div>
+            <h1 class="text-4xl font-bold mb-2 text-cyan-300 drop-shadow-lg">選擇關卡</h1>
+            <p class="text-yellow-200 text-sm mb-4">Sleeping設計</p>
+             <p class="text-gray-400 mb-6">點擊元素，挑戰你的化學知識！</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+                <div class="level-option">
+                    <button id="start-level1-btn" class="start-btn w-full bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">第一關 (中文點擊符號)</button>
+                    <div class="slow-option">
+                        <label for="slow-speed-1">慢速</label>
+                        <input type="checkbox" id="slow-speed-1" class="slow-checkbox">
+                    </div>
+                </div>
+                <div class="level-option">
+                    <button id="start-level2-btn" class="start-btn w-full bg-gradient-to-br from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">第二關 (符號點擊中文)</button>
+                    <div class="slow-option">
+                        <label for="slow-speed-2">慢速</label>
+                        <input type="checkbox" id="slow-speed-2" class="slow-checkbox">
+                    </div>
+                </div>
+                <button id="start-level3-btn" class="w-full bg-gradient-to-br from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">基礎熱身</button>
+                <button id="start-level4-btn" class="w-full bg-gradient-to-br from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">第四關 (反應挑戰)</button>
+                <button id="start-level5-btn" class="w-full bg-gradient-to-br from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform md:col-span-2">第五關 (混合反向挑戰)</button>
+            </div>
+        </div>
+
+        <!-- 遊戲結束報告畫面 -->
+        <div id="game-over-screen" class="screen hidden overflow-y-auto bg-gray-800/50 rounded-2xl shadow-2xl">
+            <h1 id="game-over-title" class="text-4xl font-bold mb-4 text-red-400 drop-shadow-lg">遊戲結束</h1>
+            <div id="report-content" class="text-lg mb-4 text-left space-y-2"></div>
+            <div id="report-review-board-container" class="w-full max-w-lg mx-auto mb-12"></div>
+            <div class="space-y-4 max-w-sm w-full">
+                 <button id="restart-level-btn" class="w-full bg-gradient-to-br from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">重新挑戰本關</button>
+                 <button id="back-to-main-menu-btn" class="w-full bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">返回主選單</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // == 請在這裡貼上您從 Google Apps Script 複製的網路應用程式網址 ==
+        // =================================================================
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyojQxkJjumbnH1QmzVSs98nXgvxXpKVPrT7eIrp95_dze5J3eoTSrdmoyHbG3tq-y9cA/exec';
+        // =================================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Screen elements
+        const loginScreen = document.getElementById('login-screen');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const uiOverlay = document.getElementById('ui-overlay');
+
+        // UI elements
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const timerEl = document.getElementById('timer');
+        const levelIndicatorEl = document.getElementById('level-indicator');
+        
+        // Login elements
+        const classInput = document.getElementById('class-input');
+        const seatInput = document.getElementById('seat-input');
+        const loginButton = document.getElementById('login-button');
+
+        // Start screen elements
+        const startLevel1Btn = document.getElementById('start-level1-btn');
+        const startLevel2Btn = document.getElementById('start-level2-btn');
+        const startLevel3Btn = document.getElementById('start-level3-btn');
+        const startLevel4Btn = document.getElementById('start-level4-btn');
+        const startLevel5Btn = document.getElementById('start-level5-btn');
+
+        // Game over elements
+        const gameOverTitle = document.getElementById('game-over-title');
+        const reportContent = document.getElementById('report-content');
+        const reportReviewContainer = document.getElementById('report-review-board-container');
+        const restartLevelBtn = document.getElementById('restart-level-btn');
+        const backToMainMenuBtn = document.getElementById('back-to-main-menu-btn');
+
+        let gameLoopId, clueIntervalId;
+        let targets, periodicTable, selectedTarget, particles, stars, currentClue;
+        let score, lives, currentLevel, lastSpawnTime, gameStartTime, isSlowMode, isGameOver;
+        let playerClass, playerSeat, wrongAnswers;
+        const GAME_DURATION = 120; // 2 minutes in seconds
+
+        const elements = [
+            { name: '氫', symbol: 'H', row: 1, col: 1, group: 1 }, { name: '氦', symbol: 'He', row: 1, col: 18, group: 18 },
+            { name: '鋰', symbol: 'Li', row: 2, col: 1, group: 1 }, { name: '鈹', symbol: 'Be', row: 2, col: 2, group: 2 },
+            { name: '硼', symbol: 'B', row: 2, col: 13, group: 13 }, { name: '碳', symbol: 'C', row: 2, col: 14, group: 14 },
+            { name: '氮', symbol: 'N', row: 2, col: 15, group: 15 }, { name: '氧', symbol: 'O', row: 2, col: 16, group: 16 },
+            { name: '氟', symbol: 'F', row: 2, col: 17, group: 17 }, { name: '氖', symbol: 'Ne', row: 2, col: 18, group: 18 },
+            { name: '鈉', symbol: 'Na', row: 3, col: 1, group: 1 }, { name: '鎂', symbol: 'Mg', row: 3, col: 2, group: 2 },
+            { name: '鋁', symbol: 'Al', row: 3, col: 13, group: 13 }, { name: '矽', symbol: 'Si', row: 3, col: 14, group: 14 },
+            { name: '磷', symbol: 'P', row: 3, col: 15, group: 15 }, { name: '硫', symbol: 'S', row: 3, col: 16, group: 16 },
+            { name: '氯', symbol: 'Cl', row: 3, col: 17, group: 17 }, { name: '氬', symbol: 'Ar', row: 3, col: 18, group: 18 },
+            { name: '鉀', symbol: 'K', row: 4, col: 1, group: 1 }, { name: '鈣', symbol: 'Ca', row: 4, col: 2, group: 2 },
+            { name: '鈧', symbol: 'Sc', row: 4, col: 3, group: 3 }, { name: '鈦', symbol: 'Ti', row: 4, col: 4, group: 4 },
+            { name: '釩', symbol: 'V', row: 4, col: 5, group: 5 }, { name: '鉻', symbol: 'Cr', row: 4, col: 6, group: 6 },
+            { name: '錳', symbol: 'Mn', row: 4, col: 7, group: 7 }, { name: '鐵', symbol: 'Fe', row: 4, col: 8, group: 8 },
+            { name: '鈷', symbol: 'Co', row: 4, col: 9, group: 9 }, { name: '鎳', symbol: 'Ni', row: 4, col: 10, group: 10 },
+            { name: '銅', symbol: 'Cu', row: 4, col: 11, group: 11 }, { name: '鋅', symbol: 'Zn', row: 4, col: 12, group: 12 },
+            { name: '鎵', symbol: 'Ga', row: 4, col: 13, group: 13 }, { name: '鍺', symbol: 'Ge', row: 4, col: 14, group: 14 },
+            { name: '砷', symbol: 'As', row: 4, col: 15, group: 15 }, { name: '硒', symbol: 'Se', row: 4, col: 16, group: 16 },
+            { name: '溴', symbol: 'Br', row: 4, col: 17, group: 17 }, { name: '氪', symbol: 'Kr', row: 4, col: 18, group: 18 },
+            { name: '銣', symbol: 'Rb', row: 5, col: 1, group: 1 }, { name: '鍶', symbol: 'Sr', row: 5, col: 2, group: 2 },
+            { name: '銀', symbol: 'Ag', row: 5, col: 11, group: 11 }, { name: '錫', symbol: 'Sn', row: 5, col: 14, group: 14 },
+            { name: '碘', symbol: 'I', row: 5, col: 17, group: 17 }, { name: '氙', symbol: 'Xe', row: 5, col: 18, group: 18 },
+            { name: '銫', symbol: 'Cs', row: 6, col: 1, group: 1 }, { name: '鋇', symbol: 'Ba', row: 6, col: 2, group: 2 },
+            { name: '金', symbol: 'Au', row: 6, col: 11, group: 11 }, { name: '汞', symbol: 'Hg', row: 6, col: 12, group: 12 },
+            { name: '鉛', symbol: 'Pb', row: 6, col: 14, group: 14 }, { name: '砈', symbol: 'At', row: 6, col: 17, group: 17 },
+            { name: '氡', symbol: 'Rn', row: 6, col: 18, group: 18 },
+            { name: '鍅', symbol: 'Fr', row: 7, col: 1, group: 1 }, { name: '鐳', symbol: 'Ra', row: 7, col: 2, group: 2 }
+        ];
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = Math.random() * 5 + 2;
+                this.speedX = Math.random() * 3 - 1.5;
+                this.speedY = Math.random() * 3 - 1.5;
+                this.color = `hsl(${Math.random() * 60 + 200}, 100%, 50%)`;
+                this.life = 100;
+            }
+            update() { this.x += this.speedX; this.y += this.speedY; this.life -= 2; }
+            draw() {
+                ctx.fillStyle = this.color; ctx.globalAlpha = this.life / 100;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        class Target {
+            constructor() {
+                this.element = elements[Math.floor(Math.random() * elements.length)];
+                this.radius = 40;
+                this.x = Math.random() * (canvas.width - this.radius * 2) + this.radius;
+                this.y = -this.radius;
+                this.speed = isSlowMode ? (0.3 + Math.random() * 0.4) : (0.5 + Math.random() * 0.8);
+                this.selected = false;
+                this.displayType = 'name'; // Default
+                if (currentLevel === 2) this.displayType = 'symbol';
+                if (currentLevel === 3) this.displayType = Math.random() < 0.5 ? 'symbol' : 'name';
+                if (currentLevel === 5) {
+                    const correspondingCell = periodicTable.cells.find(c => c.symbol === this.element.symbol);
+                    this.displayType = correspondingCell.displayType === 'name' ? 'symbol' : 'name';
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                const gradient = ctx.createRadialGradient(this.x, this.y, this.radius * 0.5, this.x, this.y, this.radius);
+                gradient.addColorStop(0, this.selected ? '#fde047' : '#f472b6');
+                gradient.addColorStop(1, this.selected ? '#eab308' : '#db2777');
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                if (this.selected) { ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 4; ctx.stroke(); }
+                ctx.closePath();
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 24px "Noto Sans TC"';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const text = this.displayType === 'name' ? this.element.name : this.element.symbol;
+                ctx.fillText(text, this.x, this.y);
+            }
+            update() { this.y += this.speed; }
+        }
+
+        class PeriodicTable {
+            constructor() {
+                this.cols = 18; this.rows = 7; this.x = 20;
+                this.y = canvas.height * 0.45; this.width = canvas.width - 40;
+                this.height = canvas.height * 0.5;
+                this.cellWidth = this.width / this.cols;
+                this.cellHeight = this.height / this.rows;
+                this.cells = elements.map(el => ({
+                    ...el,
+                    x: this.x + (el.col - 1) * this.cellWidth,
+                    y: this.y + (el.row - 1) * this.cellHeight,
+                    width: this.cellWidth,
+                    height: this.cellHeight
+                }));
+            }
+            draw() {
+                this.cells.forEach(cell => {
+                    ctx.strokeStyle = '#334155';
+                    ctx.strokeRect(cell.x, cell.y, cell.width, cell.height);
+                    ctx.fillStyle = 'white';
+                    const fontSize = Math.min(this.cellWidth / 2.5, 14);
+                    ctx.font = `bold ${fontSize}px "Noto Sans TC"`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let text;
+                    if (currentLevel === 1) text = cell.symbol;
+                    else if (currentLevel === 2) text = cell.name;
+                    else if (currentLevel === 5) text = cell.displayType === 'name' ? cell.name : cell.symbol;
+                    else { // For levels 3 and 4, show both
+                        ctx.fillText(cell.symbol, cell.x + cell.width / 2, cell.y + cell.height / 2 - fontSize/2);
+                        ctx.font = `${fontSize * 0.8}px "Noto Sans TC"`;
+                        ctx.fillText(cell.name, cell.x + cell.width / 2, cell.y + cell.height / 2 + fontSize/1.5);
+                        return;
+                    }
+                    ctx.fillText(text, cell.x + cell.width / 2, cell.y + cell.height / 2);
+                });
+            }
+        }
+        
+        function init(level, slow = false) {
+            currentLevel = level; 
+            isSlowMode = slow;
+            isGameOver = false;
+            score = 0; lives = 3;
+            selectedTarget = null; targets = []; periodicTable = new PeriodicTable();
+            lastSpawnTime = performance.now(); gameStartTime = performance.now();
+            wrongAnswers = []; particles = [];
+            
+            if (level === 5) {
+                periodicTable.cells.forEach(cell => {
+                    cell.displayType = Math.random() < 0.5 ? 'name' : 'symbol';
+                });
+            }
+
+            updateUI();
+            
+            if (currentLevel !== 4) {
+                targets.push(new Target());
+                let title;
+                if (level === 1) title = "第一關 (中文點擊符號)";
+                else if (level === 2) title = "第二關 (符號點擊中文)";
+                else if (level === 3) title = "基礎熱身";
+                else if (level === 5) title = "第五關 (反向挑戰)";
+                levelIndicatorEl.textContent = title;
+            } else {
+                correctGroupHits = 0;
+                generateNewGroupClue();
+                if (clueIntervalId) clearInterval(clueIntervalId);
+                clueIntervalId = setInterval(generateNewGroupClue, 10000);
+            }
+            
+            startScreen.classList.add('hidden');
+            uiOverlay.classList.remove('hidden');
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoop();
+        }
+
+        function createStars() {
+            stars = [];
+            for (let i = 0; i < 200; i++) {
+                stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, radius: Math.random() * 1.5, alpha: Math.random() });
+            }
+        }
+
+        function drawStars() {
+            stars.forEach(star => {
+                star.y += 0.1;
+                if (star.y > canvas.height) { star.y = 0; star.x = Math.random() * canvas.width; }
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                ctx.fill();
+            });
+        }
+        
+        function drawGroupLabels() {
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = 'bold 16px "Noto Sans TC"';
+            ctx.textAlign = 'center';
+            const uniqueGroups = [...new Set(elements.map(e => e.group))];
+            uniqueGroups.forEach(groupNum => {
+                const representativeElement = elements.find(e => e.group === groupNum);
+                const labelX = periodicTable.x + (representativeElement.col - 1) * periodicTable.cellWidth + periodicTable.cellWidth / 2;
+                const labelY = periodicTable.y - 20;
+                ctx.fillText(groupNum, labelX, labelY);
+            });
+        }
+
+        function generateNewGroupClue() {
+            const allGroups = [...new Set(elements.map(el => el.group))];
+            currentClue = allGroups[Math.floor(Math.random() * allGroups.length)];
+            levelIndicatorEl.textContent = `第 4 關: 找出屬於 [第 ${currentClue} 族] 的元素`;
+        }
+
+        function gameLoop(timestamp) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawStars();
+            periodicTable.draw();
+            drawGroupLabels();
+
+            if (currentLevel !== 4) {
+                targets.forEach((target, tIndex) => {
+                    target.draw();
+                    target.update();
+                    if (target.y > canvas.height + target.radius) {
+                        targets.splice(tIndex, 1);
+                        lives--;
+                        if (target.selected) selectedTarget = null;
+                        wrongAnswers.push(target.element);
+                        updateUI();
+                        if (lives <= 0 && !isGameOver) gameOver("遊戲結束");
+                    }
+                });
+            } else {
+                 targets.forEach((target, tIndex) => {
+                    target.draw();
+                    target.update();
+                    if (target.y > canvas.height + target.radius) {
+                        targets.splice(tIndex, 1);
+                        if(target.element.group === currentClue) {
+                            lives--;
+                            wrongAnswers.push(target.element);
+                        }
+                        if (target.selected) selectedTarget = null;
+                        updateUI();
+                        if (lives <= 0 && !isGameOver) gameOver("遊戲結束");
+                    }
+                });
+            }
+            
+            if (targets.length < 3) {
+                 const spawnInterval = 10000 / 3; 
+                if (timestamp - lastSpawnTime > spawnInterval) {
+                    targets.push(new Target());
+                    lastSpawnTime = timestamp;
+                }
+            }
+            
+            particles.forEach((p, index) => { p.update(); p.draw(); if (p.life <= 0) particles.splice(index, 1); });
+            
+            const elapsedTime = (timestamp - gameStartTime) / 1000;
+            const remainingTime = Math.max(0, GAME_DURATION - elapsedTime);
+            timerEl.textContent = Math.ceil(remainingTime);
+            if (remainingTime <= 0 && !isGameOver) gameOver("時間到！");
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+        
+        function gameOver(reason) {
+            if (isGameOver) return;
+            isGameOver = true;
+
+            cancelAnimationFrame(gameLoopId);
+            if(clueIntervalId) clearInterval(clueIntervalId);
+            uiOverlay.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            gameOverTitle.textContent = "遊戲結束";
+            showReport();
+            saveScore();
+        }
+
+        function saveScore() {
+            if (!SCRIPT_URL || SCRIPT_URL === '請在這裡貼上您的Google Apps Script網址') {
+                console.log('未設定Google Apps Script網址，不進行儲存。');
+                return;
+            }
+
+            const data = {
+                playerClass: playerClass,
+                playerSeat: playerSeat,
+                level: `第 ${currentLevel} 關`,
+                score: score
+            };
+
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Important for simple POST requests to Apps Script
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(() => {
+                const statusEl = document.createElement('p');
+                statusEl.textContent = '成績已儲存';
+                statusEl.className = 'text-green-400 text-center text-sm mt-2';
+                reportContent.appendChild(statusEl);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const statusEl = document.createElement('p');
+                statusEl.textContent = '成績上傳失敗';
+                statusEl.className = 'text-red-400 text-center text-sm mt-2';
+                reportContent.appendChild(statusEl);
+            });
+        }
+
+        function showReport() {
+            reportContent.innerHTML = `
+                <p>班級：<span class="font-bold text-cyan-300">${playerClass}</span></p>
+                <p>座號：<span class="font-bold text-cyan-300">${playerSeat}</span></p>
+                <p>總分：<span class="font-bold text-yellow-300 text-2xl">${score}</span></p>
+            `;
+            
+            reportReviewContainer.innerHTML = '';
+            const boardTitle = document.createElement('h3');
+            boardTitle.className = 'text-lg font-bold text-center my-2 text-cyan-300';
+            boardTitle.textContent = '錯誤回顧';
+            reportReviewContainer.appendChild(boardTitle);
+
+            const board = document.createElement('div');
+            board.className = 'bg-slate-900 rounded-lg p-2 border-2 border-red-500';
+            board.style.display = 'grid';
+            board.style.gridTemplateColumns = `repeat(${periodicTable.cols}, 1fr)`;
+            board.style.gap = '2px';
+            
+            const wrongSymbols = new Set(wrongAnswers.map(e => e.symbol));
+
+            if (wrongSymbols.size > 0) {
+                 periodicTable.cells.forEach(cell => {
+                    if (wrongSymbols.has(cell.symbol)) {
+                        const zone = document.createElement('div');
+                        zone.className = 'flex flex-col items-center justify-center text-white leading-tight p-1 aspect-square';
+                        zone.style.gridColumnStart = cell.col;
+                        zone.style.gridRowStart = cell.row;
+                        
+                        const symbolEl = document.createElement('div');
+                        symbolEl.className = 'font-bold text-sm';
+                        symbolEl.textContent = cell.symbol;
+
+                        const nameEl = document.createElement('div');
+                        nameEl.className = 'text-xs';
+                        nameEl.textContent = cell.name;
+                        
+                        zone.appendChild(symbolEl);
+                        zone.appendChild(nameEl);
+                        board.appendChild(zone);
+                    }
+                });
+            } else {
+                const noErrors = document.createElement('p');
+                noErrors.className = 'text-green-400 text-center col-span-18 py-8';
+                noErrors.textContent = '恭喜你，沒有任何錯誤！';
+                board.appendChild(noErrors);
+            }
+            reportReviewContainer.appendChild(board);
+        }
+
+        function updateUI() {
+            scoreEl.textContent = score;
+            livesEl.textContent = '❤️'.repeat(Math.max(0, lives));
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            createStars();
+            if (periodicTable) { 
+                periodicTable = new PeriodicTable();
+            }
+        }
+        
+        function handleClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (currentLevel === 4) {
+                let clickedOnTarget = false;
+                targets.forEach((target, tIndex) => {
+                    const dist = Math.hypot(x - target.x, y - target.y);
+                    if (dist < target.radius) {
+                        if (target.element.group === currentClue) {
+                            score += 20;
+                            for (let i = 0; i < 30; i++) particles.push(new Particle(x, y));
+                            targets.splice(tIndex, 1);
+                        } else {
+                            lives--;
+                            wrongAnswers.push(target.element);
+                            targets.splice(tIndex, 1);
+                        }
+                        clickedOnTarget = true;
+                        updateUI();
+                        if (lives <= 0 && !isGameOver) gameOver("遊戲結束");
+                    }
+                });
+                 if(clickedOnTarget) return;
+
+                 periodicTable.cells.forEach(cell => {
+                    if (x > cell.x && x < cell.x + cell.width && y > cell.y && y < cell.y + cell.height) {
+                       lives--;
+                       wrongAnswers.push(cell);
+                       updateUI();
+                       if (lives <= 0 && !isGameOver) gameOver("遊戲結束");
+                    }
+                });
+                return;
+            }
+
+            let clickedOnTarget = false;
+            targets.forEach(target => {
+                const dist = Math.hypot(x - target.x, y - target.y);
+                if (dist < target.radius) {
+                    if (selectedTarget) selectedTarget.selected = false;
+                    target.selected = true;
+                    selectedTarget = target;
+                    clickedOnTarget = true;
+                }
+            });
+
+            if (clickedOnTarget) return;
+
+            if (selectedTarget) {
+                periodicTable.cells.forEach(cell => {
+                    if (x > cell.x && x < cell.x + cell.width && y > cell.y && y < cell.y + cell.height) {
+                        if (cell.symbol === selectedTarget.element.symbol) {
+                            score += 10;
+                            for (let i = 0; i < 30; i++) particles.push(new Particle(selectedTarget.x, selectedTarget.y));
+                            const index = targets.indexOf(selectedTarget);
+                            if (index > -1) targets.splice(index, 1);
+                        } else {
+                            lives--;
+                            wrongAnswers.push(selectedTarget.element);
+                        }
+                        selectedTarget.selected = false;
+                        selectedTarget = null;
+                        updateUI();
+                        if (lives <= 0 && !isGameOver) gameOver("遊戲結束");
+                    }
+                });
+            }
+        }
+
+        // Event Listeners
+        window.addEventListener('resize', resizeCanvas);
+        canvas.addEventListener('click', handleClick);
+
+        loginButton.addEventListener('click', () => {
+            if (!classInput.value || !seatInput.value) {
+                alert('請先輸入班級和座號！');
+                return;
+            }
+            playerClass = classInput.value;
+            playerSeat = seatInput.value;
+            loginScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        });
+
+        startLevel1Btn.addEventListener('click', () => {
+            const isSlow = document.getElementById('slow-speed-1').checked;
+            init(1, isSlow);
+        });
+        startLevel2Btn.addEventListener('click', () => {
+            const isSlow = document.getElementById('slow-speed-2').checked;
+            init(2, isSlow);
+        });
+        startLevel3Btn.addEventListener('click', () => init(3));
+        startLevel4Btn.addEventListener('click', () => init(4));
+        startLevel5Btn.addEventListener('click', () => init(5));
+        restartLevelBtn.addEventListener('click', () => init(currentLevel, isSlowMode));
+        backToMainMenuBtn.addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        });
+
+        // Initial setup
+        resizeCanvas();
+
+    </script>
+</body>
+</html>
