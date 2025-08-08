@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>元素週期表 - 定位挑戰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            overscroll-behavior: none;
+        }
+        .game-board-bg {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            aspect-ratio: 900 / 535;
+            margin: auto;
+            background-image: url('https://storage.googleapis.com/gemini-prod/images/e7e6f315-7769-424a-9e1e-2895f5024446');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        #review-board { max-width: 450px; }
+        .group-label { position: absolute; top: 5%; font-weight: bold; color: #9ca3af; transform: translateX(-50%); }
+        .drop-zone { position: absolute; width: 5.5%; height: 9.5%; border: 2px dashed rgba(255, 255, 255, 0.5); border-radius: 8px; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
+        .drop-zone.drag-over { background-color: rgba(0, 255, 255, 0.3); border-style: solid; transform: scale(1.1); }
+        .element-card { cursor: grab; transition: all 0.2s ease; width: 60px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .element-dragging { cursor: grabbing; transform: scale(0.95); }
+        .placed-correct { border: 3px solid #4ade80; background-color: rgba(74, 222, 128, 0.3); }
+        .placed-incorrect { border: 3px solid #f87171; background-color: rgba(248, 113, 113, 0.3); }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div id="app" class="w-full max-w-6xl mx-auto">
+        <!-- 1. 遊戲開始頁面 -->
+        <div id="start-screen" class="text-center bg-gray-800 p-8 rounded-2xl shadow-2xl">
+            <h1 class="text-4xl font-bold mb-4 text-cyan-300">元素週期表定位挑戰</h1>
+            <p class="text-gray-400 mb-8">請輸入班級座號以開始挑戰！</p>
+            <div class="max-w-sm mx-auto">
+                <div class="mb-4">
+                    <label for="class-input" class="block text-left mb-2 text-gray-300">班級</label>
+                    <input type="number" id="class-input" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="例如：206 (代表2年6班)">
+                </div>
+                <div class="mb-6">
+                    <label for="seat-input" class="block text-left mb-2 text-gray-300">座號</label>
+                    <input type="number" id="seat-input" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="例如：5">
+                </div>
+                <button id="login-button" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform">
+                    進入考試選單
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. 考試選擇畫面 -->
+        <div id="exam-selection-screen" class="hidden text-center bg-gray-800 p-8 rounded-2xl shadow-2xl">
+            <h1 class="text-4xl font-bold mb-2 text-cyan-300">選擇考試項目</h1>
+            <p class="text-gray-400 mb-8">學生：<span id="player-info" class="font-bold text-white"></span></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                <button data-exam-id="1" class="exam-button bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-transform">
+                    考試 (一)：第 1 & 2 族
+                </button>
+                <button data-exam-id="2" class="exam-button bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-transform">
+                    考試 (二)：第 17 & 18 族
+                </button>
+                <button data-exam-id="3" class="exam-button bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-transform">
+                    考試 (三)：第 13 - 16 族
+                </button>
+                 <button data-exam-id="4" class="exam-button bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-transform">
+                    考試 (四)：過渡金屬
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. 遊戲畫面 -->
+        <div id="game-screen" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <button id="back-to-menu-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">返回選單</button>
+                <div class="flex gap-6">
+                    <div>
+                        <span class="text-gray-400">時間: </span>
+                        <span id="timer" class="text-2xl font-bold text-yellow-300">0s</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-400">得分: </span>
+                        <span id="score" class="text-2xl font-bold text-yellow-300">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-center gap-6">
+                <div class="w-full md:w-1/4 order-2 md:order-1 bg-gray-900/70 p-4 rounded-xl">
+                    <h2 id="level-title" class="text-xl font-bold mb-4 text-center text-cyan-300"></h2>
+                    <div id="elements-container" class="flex flex-wrap justify-center gap-3"></div>
+                    <button id="check-answers-btn" class="hidden mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">檢查答案</button>
+                </div>
+                <div class="w-full md:w-3/4 order-1 md:order-2">
+                    <div id="feedback" class="text-xl font-bold text-center mb-2 h-7"></div>
+                    <div id="game-board" class="game-board-bg"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 成績報告頁面 -->
+        <div id="report-screen" class="hidden text-center bg-gray-800 p-8 rounded-2xl shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <button id="report-back-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">返回選單</button>
+                <h1 id="report-title" class="text-3xl font-bold text-cyan-300"></h1>
+                <div class="w-24"></div>
+            </div>
+            <div id="report-content" class="text-lg mb-4 text-left space-y-2 max-w-sm mx-auto"></div>
+            <div id="report-review-board-container" class="w-full max-w-2xl mx-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==================================================================
+        // ====> 請將下方 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE' <====
+        // ====> 替換成您自己的 Google Apps Script 網頁應用程式 URL <====
+        // ==================================================================
+        const googleSheetApiUrl = 'https://script.google.com/macros/s/AKfycbyhAL5aujjeVaW0bPTw4FX-KEMl97dFHGSbV8bx8F4IBYhFTHVdLXNVN9JFr-eeqp37Aw/exec'; 
+
+        // --- DOM 元素 ---
+        const startScreen = document.getElementById('start-screen');
+        const examSelectionScreen = document.getElementById('exam-selection-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const reportScreen = document.getElementById('report-screen');
+        const classInput = document.getElementById('class-input');
+        const seatInput = document.getElementById('seat-input');
+        const loginButton = document.getElementById('login-button');
+        const playerInfoEl = document.getElementById('player-info');
+        const checkAnswersBtn = document.getElementById('check-answers-btn');
+        const backToMenuBtn = document.getElementById('back-to-menu-btn');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const feedbackEl = document.getElementById('feedback');
+        const levelTitleEl = document.getElementById('level-title');
+        const elementsContainer = document.getElementById('elements-container');
+        const gameBoard = document.getElementById('game-board');
+        const reportTitle = document.getElementById('report-title');
+        const reportContent = document.getElementById('report-content');
+        const reportReviewContainer = document.getElementById('report-review-board-container');
+        const reportBackBtn = document.getElementById('report-back-btn');
+
+        // --- 資料庫 ---
+        const allElements = {
+            group1: [
+                { name: '氫', symbol: 'H', top: '12.5%', left: '3.5%' }, { name: '鋰', symbol: 'Li', top: '22.5%', left: '3.5%' },
+                { name: '鈉', symbol: 'Na', top: '32.5%', left: '3.5%' }, { name: '鉀', symbol: 'K', top: '42.5%', left: '3.5%' },
+                { name: '銣', symbol: 'Rb', top: '52.5%', left: '3.5%' }, { name: '銫', symbol: 'Cs', top: '62.5%', left: '3.5%' },
+                { name: '鍅', symbol: 'Fr', top: '72.5%', left: '3.5%' }
+            ],
+            group2: [
+                { name: '鈹', symbol: 'Be', top: '22.5%', left: '9.2%' }, { name: '鎂', symbol: 'Mg', top: '32.5%', left: '9.2%' },
+                { name: '鈣', symbol: 'Ca', top: '42.5%', left: '9.2%' }, { name: '鍶', symbol: 'Sr', top: '52.5%', left: '9.2%' },
+                { name: '鋇', symbol: 'Ba', top: '62.5%', left: '9.2%' }, { name: '鐳', symbol: 'Ra', top: '72.5%', left: '9.2%' }
+            ],
+            group3: [{ name: '鈧', symbol: 'Sc', top: '42.5%', left: '15%' }],
+            group4: [{ name: '鈦', symbol: 'Ti', top: '42.5%', left: '20.8%' }],
+            group5: [{ name: '釩', symbol: 'V', top: '42.5%', left: '26.5%' }],
+            group6: [{ name: '鉻', symbol: 'Cr', top: '42.5%', left: '32.2%' }],
+            group7: [{ name: '錳', symbol: 'Mn', top: '42.5%', left: '38%' }],
+            group8: [{ name: '鐵', symbol: 'Fe', top: '42.5%', left: '43.8%' }],
+            group9: [{ name: '鈷', symbol: 'Co', top: '42.5%', left: '49.5%' }],
+            group10: [{ name: '鎳', symbol: 'Ni', top: '42.5%', left: '55.2%' }],
+            group11: [
+                { name: '銅', symbol: 'Cu', top: '42.5%', left: '61%' },
+                { name: '銀', symbol: 'Ag', top: '52.5%', left: '61%' },
+                { name: '金', symbol: 'Au', top: '62.5%', left: '61%' }
+            ],
+            group12: [
+                { name: '鋅', symbol: 'Zn', top: '42.5%', left: '66.8%' },
+                { name: '鎘', symbol: 'Cd', top: '52.5%', left: '66.8%' },
+                { name: '汞', symbol: 'Hg', top: '62.5%', left: '66.8%' }
+            ],
+            group13: [
+                { name: '硼', symbol: 'B', top: '22.5%', left: '68.5%' }, { name: '鋁', symbol: 'Al', top: '32.5%', left: '68.5%' }
+            ],
+            group14: [
+                { name: '碳', symbol: 'C', top: '22.5%', left: '74.2%' }, { name: '矽', symbol: 'Si', top: '32.5%', left: '74.2%' },
+                { name: '鍺', symbol: 'Ge', top: '42.5%', left: '74.2%' }, { name: '錫', symbol: 'Sn', top: '52.5%', left: '74.2%' },
+                { name: '鉛', symbol: 'Pb', top: '62.5%', left: '74.2%' }
+            ],
+            group15: [
+                { name: '氮', symbol: 'N', top: '22.5%', left: '80%' }, { name: '磷', symbol: 'P', top: '32.5%', left: '80%' },
+                { name: '砷', symbol: 'As', top: '42.5%', left: '80%' }
+            ],
+            group16: [
+                { name: '氧', symbol: 'O', top: '22.5%', left: '85.8%' }, { name: '硫', symbol: 'S', top: '32.5%', left: '85.8%' }
+            ],
+            group17: [
+                { name: '氟', symbol: 'F', top: '22.5%', left: '85.8%' }, { name: '氯', symbol: 'Cl', top: '32.5%', left: '85.8%' },
+                { name: '溴', symbol: 'Br', top: '42.5%', left: '85.8%' }, { name: '碘', symbol: 'I', top: '52.5%', left: '85.8%' },
+                { name: '砈', symbol: 'At', top: '62.5%', left: '85.8%' }
+            ],
+            group18: [
+                { name: '氦', symbol: 'He', top: '12.5%', left: '91.5%' }, { name: '氖', symbol: 'Ne', top: '22.5%', left: '91.5%' },
+                { name: '氬', symbol: 'Ar', top: '32.5%', left: '91.5%' }, { name: '氪', symbol: 'Kr', top: '42.5%', left: '91.5%' },
+                { name: '氙', symbol: 'Xe', top: '52.5%', left: '91.5%' }, { name: '氡', symbol: 'Rn', top: '62.5%', left: '91.5%' }
+            ]
+        };
+        const groupLabels = [
+            { text: '1', left: '6.2%' }, { text: '2', left: '12%' },
+            { text: '3', left: '17.8%' }, { text: '4', left: '23.5%' }, { text: '5', left: '29.2%' },
+            { text: '6', left: '35%' }, { text: '7', left: '40.8%' }, { text: '8', left: '46.5%' },
+            { text: '9', left: '52.2%' }, { text: '10', left: '58%' }, { text: '11', left: '63.8%' },
+            { text: '12', left: '69.5%' }, { text: '13', left: '71.2%' }, { text: '14', left: '77%' },
+            { text: '15', left: '82.8%' }, { text: '16', left: '88.5%' }, { text: '17', left: '88.5%' },
+            { text: '18', left: '94.2%' }
+        ];
+
+        // --- 考試設定 ---
+        const examsConfig = [
+            { id: 1, title: '考試 (一)：第 1 & 2 族', levels: [
+                { title: '第 1 & 2 族', groups: ['group1', 'group2'], type: 'name' },
+                { title: '第 1 & 2 族', groups: ['group1', 'group2'], type: 'symbol' }
+            ]},
+            { id: 2, title: '考試 (二)：第 17 & 18 族', levels: [
+                { title: '第 17 & 18 族', groups: ['group17', 'group18'], type: 'name' },
+                { title: '第 17 & 18 族', groups: ['group17', 'group18'], type: 'symbol' }
+            ]},
+            { id: 3, title: '考試 (三)：第 13 - 16 族', levels: [
+                { title: '第 13 - 16 族', groups: ['group13', 'group14', 'group15', 'group16'], type: 'name' },
+                { title: '第 13 - 16 族', groups: ['group13', 'group14', 'group15', 'group16'], type: 'symbol' }
+            ]},
+            { id: 4, title: '考試 (四)：過渡金屬', levels: [
+                { title: '過渡金屬 (第 3-12 族)', groups: ['group3', 'group4', 'group5', 'group6', 'group7', 'group8', 'group9', 'group10', 'group11', 'group12'], type: 'name_symbol_match' }
+            ]}
+        ];
+
+        // --- 遊戲狀態 ---
+        let gameState = {
+            playerClass: '', playerSeat: '',
+            currentExam: null,
+            levelIndex: 0,
+            score: 0, timer: 0, intervalId: null,
+            correctlyPlaced: 0,
+            elementsForCurrentLevel: [],
+            wrongAnswers: []
+        };
+
+        // --- 函數 ---
+        function sendDataToGoogleSheet(playerClass, playerSeat, examTitle, score, time) {
+            if (googleSheetApiUrl === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+                console.warn("尚未設定 Google Apps Script URL，無法記錄成績。");
+                return;
+            }
+            const formData = new FormData();
+            formData.append('class', playerClass);
+            formData.append('seat', playerSeat);
+            formData.append('exam', examTitle);
+            formData.append('score', score);
+            formData.append('time', time);
+
+            fetch(googleSheetApiUrl, {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.result === 'success') {
+                    console.log('成績已成功記錄至 Google Sheet。');
+                } else {
+                    console.error('記錄成績失敗:', data);
+                }
+            })
+            .catch(error => {
+                console.error('傳送資料至 Google Sheet 時發生錯誤:', error);
+            });
+        }
+        
+        function showExamReport() {
+            gameScreen.classList.add('hidden');
+            reportScreen.classList.remove('hidden');
+
+            reportTitle.textContent = gameState.currentExam.title + ' - 成績報告';
+            reportContent.innerHTML = `
+                <p>班級：<span class="font-bold text-cyan-300">${gameState.playerClass}</span></p>
+                <p>座號：<span class="font-bold text-cyan-300">${gameState.playerSeat}</span></p>
+                <p>總分：<span class="font-bold text-yellow-300 text-2xl">${gameState.score}</span></p>
+                <p>時間：<span class="font-bold text-yellow-300 text-2xl">${gameState.timer}s</span></p>
+            `;
+            
+            sendDataToGoogleSheet(gameState.playerClass, gameState.playerSeat, gameState.currentExam.title, gameState.score, gameState.timer);
+
+            reportReviewContainer.innerHTML = '';
+            const boardTitle = document.createElement('h3');
+            boardTitle.className = 'text-lg font-bold text-center my-2 text-cyan-300';
+            boardTitle.textContent = '結果圖示';
+            reportReviewContainer.appendChild(boardTitle);
+            const board = document.createElement('div');
+            board.className = 'game-board-bg';
+            board.id = 'review-board';
+            const wrongAnswersMap = new Map(gameState.wrongAnswers.map(e => [e.correctSymbol, e]));
+            const allExamElements = gameState.currentExam.levels.flatMap(l => l.groups).flatMap(g => allElements[g]);
+            const uniqueExamElements = [...new Map(allExamElements.map(item => [item.symbol, item])).values()];
+            uniqueExamElements.forEach(el => {
+                const zone = document.createElement('div');
+                zone.className = 'drop-zone';
+                zone.style.top = el.top;
+                zone.style.left = el.left;
+                const card = document.createElement('div');
+                card.className = 'element-card bg-transparent text-white font-bold';
+                const wrongAnswer = wrongAnswersMap.get(el.symbol);
+                if (wrongAnswer) {
+                    zone.classList.add('placed-incorrect');
+                    card.textContent = wrongAnswer.type === 'name' ? el.name : el.symbol;
+                } else {
+                    zone.classList.add('placed-correct');
+                    card.textContent = el.symbol;
+                }
+                zone.appendChild(card);
+                board.appendChild(zone);
+            });
+            addGroupLabels(board);
+            reportReviewContainer.appendChild(board);
+        }
+
+        function login() {
+            if (!classInput.value || !seatInput.value) {
+                alert('請先輸入班級和座號！');
+                return;
+            }
+            gameState.playerClass = classInput.value;
+            gameState.playerSeat = seatInput.value;
+            playerInfoEl.textContent = `${gameState.playerClass}班 - ${gameState.playerSeat}號`;
+            startScreen.classList.add('hidden');
+            examSelectionScreen.classList.remove('hidden');
+        }
+
+        function startExam(examId) {
+            const exam = examsConfig.find(e => e.id === examId);
+            if (!exam) return;
+            gameState.currentExam = exam;
+            gameState.levelIndex = 0;
+            gameState.score = 0;
+            gameState.timer = 0;
+            gameState.wrongAnswers = [];
+            if (gameState.intervalId) clearInterval(gameState.intervalId);
+            examSelectionScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            setupLevel();
+            gameState.intervalId = setInterval(() => {
+                gameState.timer++;
+                timerEl.textContent = `${gameState.timer}s`;
+            }, 1000);
+        }
+
+        function addGroupLabels(boardElement) {
+            const currentGroups = new Set(gameState.currentExam.levels.flatMap(l => l.groups).map(g => parseInt(g.replace('group', ''))));
+            groupLabels.forEach(label => {
+                const groupNum = parseInt(label.text);
+                if (currentGroups.has(groupNum)) {
+                    if(groupNum === 16 && currentGroups.has(17)) return;
+                    if(groupNum === 17 && currentGroups.has(16)) return;
+                    const labelEl = document.createElement('div');
+                    labelEl.className = 'group-label';
+                    labelEl.textContent = label.text;
+                    labelEl.style.left = label.left;
+                    boardElement.appendChild(labelEl);
+                }
+            });
+        }
+
+        function setupLevel() {
+            const config = gameState.currentExam.levels[gameState.levelIndex];
+            if (!config) return;
+            gameState.elementsForCurrentLevel = config.groups.flatMap(group => allElements[group]);
+            gameState.correctlyPlaced = 0;
+            elementsContainer.innerHTML = '';
+            gameBoard.innerHTML = '';
+            scoreEl.textContent = gameState.score;
+            timerEl.textContent = `${gameState.timer}s`;
+            feedbackEl.textContent = '';
+            checkAnswersBtn.classList.toggle('hidden', config.type !== 'name');
+            if (config.type === 'name_symbol_match') {
+                levelTitleEl.textContent = `挑戰關：${config.title}`;
+                const shuffledSymbols = [...gameState.elementsForCurrentLevel].sort(() => Math.random() - 0.5);
+                shuffledSymbols.forEach(el => {
+                    const card = document.createElement('div');
+                    card.id = `el-${el.symbol}`;
+                    card.className = 'element-card bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md';
+                    card.draggable = true;
+                    card.textContent = el.symbol;
+                    card.dataset.symbol = el.symbol;
+                    card.addEventListener('dragstart', handleDragStart);
+                    elementsContainer.appendChild(card);
+                });
+                gameState.elementsForCurrentLevel.forEach(el => {
+                    const zone = document.createElement('div');
+                    zone.className = 'drop-zone';
+                    zone.style.top = el.top;
+                    zone.style.left = el.left;
+                    zone.dataset.symbol = el.symbol;
+                    zone.innerHTML = `<div class="element-card bg-transparent text-white font-bold">${el.name}</div>`;
+                    gameBoard.appendChild(zone);
+                });
+            } else {
+                levelTitleEl.textContent = `第 ${gameState.levelIndex + 1} 關：${config.title} - ${config.type === 'name' ? '中文' : '符號'}`;
+                const shuffledElements = [...gameState.elementsForCurrentLevel].sort(() => Math.random() - 0.5);
+                shuffledElements.forEach(el => {
+                    const card = document.createElement('div');
+                    card.id = `el-${el.symbol}`;
+                    card.className = 'element-card bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md';
+                    card.draggable = true;
+                    card.textContent = config.type === 'name' ? el.name : el.symbol;
+                    card.dataset.symbol = el.symbol;
+                    card.addEventListener('dragstart', handleDragStart);
+                    elementsContainer.appendChild(card);
+                });
+                gameState.elementsForCurrentLevel.forEach(el => {
+                    const zone = document.createElement('div');
+                    zone.className = 'drop-zone';
+                    zone.style.top = el.top;
+                    zone.style.left = el.left;
+                    zone.dataset.symbol = el.symbol;
+                    gameBoard.appendChild(zone);
+                });
+            }
+            addGroupLabels(gameBoard);
+        }
+
+        function showFeedback(message, isCorrect) {
+            feedbackEl.textContent = message;
+            feedbackEl.className = `text-xl font-bold text-center mb-2 h-7 ${isCorrect ? 'text-green-400' : 'text-red-400'}`;
+            setTimeout(() => { feedbackEl.textContent = ''; }, 1500);
+        }
+
+        function checkNameLevelAnswers() {
+            const dropZones = gameBoard.querySelectorAll('.drop-zone');
+            dropZones.forEach(zone => {
+                const placedElement = zone.querySelector('.element-card');
+                if (placedElement) {
+                    const isCorrect = placedElement.dataset.symbol === zone.dataset.symbol;
+                    if (isCorrect) {
+                        gameState.score += 10;
+                        zone.classList.add('placed-correct');
+                    } else {
+                        gameState.score -= 5;
+                        zone.classList.add('placed-incorrect');
+                        gameState.wrongAnswers.push({ correctSymbol: zone.dataset.symbol, placedText: placedElement.textContent, type: 'name' });
+                    }
+                } else {
+                     gameState.wrongAnswers.push({ correctSymbol: zone.dataset.symbol, placedText: '空的', type: 'name' });
+                }
+            });
+            scoreEl.textContent = gameState.score;
+            checkAnswersBtn.classList.add('hidden');
+            setTimeout(proceedToNextLevel, 2000);
+        }
+
+        function checkSymbolLevelCompletion() {
+            if (gameState.correctlyPlaced === gameState.elementsForCurrentLevel.length) {
+                setTimeout(proceedToNextLevel, 500);
+            }
+        }
+
+        function proceedToNextLevel() {
+            gameState.levelIndex++;
+            const isExamFinished = gameState.levelIndex >= gameState.currentExam.levels.length;
+            if (isExamFinished) {
+                clearInterval(gameState.intervalId);
+                showExamReport();
+            } else {
+                setupLevel();
+            }
+        }
+
+        function handleDragStart(e) {
+            e.dataTransfer.setData('text/plain', e.target.id);
+            e.target.classList.add('element-dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const targetZone = e.target.closest('.drop-zone');
+            if (targetZone) targetZone.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            const targetZone = e.target.closest('.drop-zone');
+            if (targetZone) targetZone.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const draggedElement = document.getElementById(draggedId);
+            const targetZone = e.target.closest('.drop-zone');
+            draggedElement.classList.remove('element-dragging');
+            if (targetZone) targetZone.classList.remove('drag-over');
+            if (!targetZone) return;
+            if (targetZone.children.length > 0) {
+                const existingElement = targetZone.querySelector('.element-card[draggable=true]');
+                if(existingElement) {
+                    elementsContainer.appendChild(existingElement);
+                }
+            }
+            targetZone.appendChild(draggedElement);
+            const config = gameState.currentExam.levels[gameState.levelIndex];
+            if (config.type === 'name') {
+                if (elementsContainer.children.length === 0) {
+                    checkAnswersBtn.classList.remove('hidden');
+                }
+            } else if (config.type === 'symbol' || config.type === 'name_symbol_match') {
+                const isCorrect = draggedElement.dataset.symbol === targetZone.dataset.symbol;
+                if (isCorrect) {
+                    draggedElement.draggable = false;
+                    targetZone.classList.add('placed-correct');
+                    if(config.type === 'name_symbol_match') {
+                        targetZone.querySelector('.element-card').classList.add('hidden');
+                    }
+                    gameState.score += 10;
+                    gameState.correctlyPlaced++;
+                    scoreEl.textContent = gameState.score;
+                    showFeedback('正確！', true);
+                    checkSymbolLevelCompletion();
+                } else {
+                    gameState.score -= 5;
+                    scoreEl.textContent = gameState.score;
+                    showFeedback('錯誤的位置！', false);
+                    gameState.wrongAnswers.push({ correctSymbol: targetZone.dataset.symbol, placedText: draggedElement.textContent, type: 'symbol' });
+                    setTimeout(() => {
+                        elementsContainer.appendChild(draggedElement);
+                        if(targetZone && config.type === 'symbol') targetZone.innerHTML = '';
+                    }, 300);
+                }
+            }
+        }
+
+        // --- 事件監聽 ---
+        loginButton.addEventListener('click', login);
+        document.querySelectorAll('.exam-button').forEach(btn => {
+            btn.addEventListener('click', (e) => startExam(parseInt(e.currentTarget.dataset.examId)));
+        });
+        checkAnswersBtn.addEventListener('click', checkNameLevelAnswers);
+        const goBackToMenu = () => {
+            clearInterval(gameState.intervalId);
+            gameScreen.classList.add('hidden');
+            reportScreen.classList.add('hidden');
+            examSelectionScreen.classList.remove('hidden');
+        };
+        backToMenuBtn.addEventListener('click', goBackToMenu);
+        reportBackBtn.addEventListener('click', goBackToMenu);
+        gameBoard.addEventListener('dragover', handleDragOver);
+        gameBoard.addEventListener('dragleave', handleDragLeave);
+        gameBoard.addEventListener('drop', handleDrop);
+    </script>
+</body>
+</html>
